@@ -1,0 +1,44 @@
+{
+ "voice": "en-US-AriaNeural",
+ "rate": "+0%",
+ "text_sha256": "fb6af9eeeb6462627215e17f54d0201f2239d25d132fe1fb00512f626550e749",
+ "audio_file": "6a1242f8df224b4f.mp3",
+ "duration": 3.36,
+ "words": [
+  {
+   "text": "A",
+   "start": 0.1,
+   "end": 0.225
+  },
+  {
+   "text": "second",
+   "start": 0.2375,
+   "end": 0.65
+  },
+  {
+   "text": "scene",
+   "start": 0.6625,
+   "end": 0.9625
+  },
+  {
+   "text": "keeps",
+   "start": 0.975,
+   "end": 1.2625
+  },
+  {
+   "text": "the",
+   "start": 1.275,
+   "end": 1.375
+  },
+  {
+   "text": "crossfade",
+   "start": 1.3875,
+   "end": 1.9375
+  },
+  {
+   "text": "honest.",
+   "start": 1.95,
+   "end": 2.4875
+  }
+ ]
+}

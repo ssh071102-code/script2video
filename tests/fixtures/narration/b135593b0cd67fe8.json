@@ -1,0 +1,59 @@
+{
+ "voice": "en-US-AriaNeural",
+ "rate": "+0%",
+ "text_sha256": "1a5dd08c72c12bbe6a9d6edf5760f6b264649e4dc88e2f5cc93080f2deae0d40",
+ "audio_file": "b135593b0cd67fe8.mp3",
+ "duration": 4.46,
+ "words": [
+  {
+   "text": "Two",
+   "start": 0.1,
+   "end": 0.325
+  },
+  {
+   "text": "plus",
+   "start": 0.3375,
+   "end": 0.6375
+  },
+  {
+   "text": "two",
+   "start": 0.65,
+   "end": 0.8625
+  },
+  {
+   "text": "is",
+   "start": 0.875,
+   "end": 1.0375
+  },
+  {
+   "text": "four.",
+   "start": 1.05,
+   "end": 1.475
+  },
+  {
+   "text": "That",
+   "start": 2.35,
+   "end": 2.6375
+  },
+  {
+   "text": "is",
+   "start": 2.65,
+   "end": 2.75
+  },
+  {
+   "text": "the",
+   "start": 2.7625,
+   "end": 2.85
+  },
+  {
+   "text": "whole",
+   "start": 2.8625,
+   "end": 3.1125
+  },
+  {
+   "text": "scene.",
+   "start": 3.125,
+   "end": 3.5875
+  }
+ ]
+}
