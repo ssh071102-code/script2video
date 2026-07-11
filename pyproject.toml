@@ -1,0 +1,59 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "script2video"
+version = "0.1.0"
+description = "Turn a markdown script into a narrated, captioned video: neural TTS with word-accurate timings, styled burned-in captions, and deterministic ffmpeg assembly - one command."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Laurin Lin" }]
+keywords = [
+    "video",
+    "tts",
+    "text-to-video",
+    "captions",
+    "subtitles",
+    "ffmpeg",
+    "edge-tts",
+    "pipeline",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
+dependencies = [
+    "edge-tts>=7.0",
+    "imageio-ffmpeg>=0.5",
+    "pillow>=10.1",
+    "typer>=0.12",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.urls]
+Homepage = "https://github.com/ssh071102-code/script2video"
+Repository = "https://github.com/ssh071102-code/script2video"
+Issues = "https://github.com/ssh071102-code/script2video/issues"
+
+[project.scripts]
+script2video = "script2video.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/script2video"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
