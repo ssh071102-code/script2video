@@ -65,3 +65,37 @@ def test_narration_never_overlaps_fade_window() -> None:
 def test_invalid_inputs_raise(kwargs: dict, match: str) -> None:
     with pytest.raises(ValueError, match=match):
         build_timeline(**kwargs)
+
+
+def test_tail_silence_covers_fade_after_quantization() -> None:
+    # 0.4 + 1.01 + 0.4 = 1.81s rounds down to 1.80s (45 frames), which used
+    # to leave only 0.39s of silence after the voice: less than the fade.
+    tl = build_timeline([1.01, 1.0], fade=0.4, pad_head=0.4, pad_tail=0.4)
+    s0 = tl.scenes[0]
+    narration_end = s0.narration_start + s0.narration_duration
+    tail = s0.video_end - narration_end
+    assert tail >= tl.fade - 1e-9
+    assert narration_end <= tl.xfade_offsets[0] + 1e-9
+
+
+@pytest.mark.parametrize("narration", [0.5, 1.01, 1.013, 2.017, 3.339, 7.999])
+@pytest.mark.parametrize("fps", [24, 25, 30])
+def test_pads_hold_on_the_quantized_clock(narration: float, fps: int) -> None:
+    tl = build_timeline([narration, narration], fps=fps, fade=0.4, pad_head=0.4, pad_tail=0.4)
+    # Scene starts are stored rounded to 1 us, hence the 1e-6 tolerance.
+    for s in tl.scenes:
+        head = s.narration_start - s.video_start
+        tail = s.video_end - (s.narration_start + s.narration_duration)
+        assert head >= tl.fade - 1e-6
+        assert tail >= tl.fade - 1e-6
+        frames = s.visual_duration * fps
+        assert frames == pytest.approx(round(frames))
+
+
+def test_pad_check_uses_quantized_values() -> None:
+    # At 10 fps both 0.38s and 0.4s land on 4 frames, so on the clock that
+    # is actually rendered the pad equals the fade and is valid.
+    tl = build_timeline([1.0], fps=10, fade=0.4, pad_head=0.38, pad_tail=0.38)
+    assert tl.fade == 0.4
+    with pytest.raises(ValueError, match="never overlaps a crossfade"):
+        build_timeline([1.0], fps=10, fade=0.4, pad_head=0.34, pad_tail=0.4)
