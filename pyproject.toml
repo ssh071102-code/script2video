@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "script2video"
 version = "0.1.0"
-description = "Turn a markdown script into a narrated, captioned video: neural TTS with word-accurate timings, styled burned-in captions, and deterministic ffmpeg assembly - one command."
+description = "Turn a markdown script into a narrated, captioned video: neural TTS with word-accurate timings, styled burned-in captions, and deterministic ffmpeg assembly."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
