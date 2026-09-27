@@ -4,17 +4,17 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
-Turn a markdown script into a narrated, captioned video: neural TTS with
-word-accurate timings, styled burned-in captions, and deterministic ffmpeg
-assembly -- one command.
+script2video turns a markdown script into a narrated, captioned mp4 with a
+single command: edge-tts narration, captions timed from the TTS word
+boundaries, and an ffmpeg encode built from a pure function.
 
-![A frame from the sample render: generated backdrop, scene typography, burned-in captions](docs/frame.png)
+![Seven seconds of the sample render: scene 1 crossfades into scene 2 with burned-in captions](docs/demo.gif)
 
-That frame is from [docs/demo.mp4](docs/demo.mp4), an 83-second explainer
-rendered entirely by this pipeline from
-[examples/demo-script.md](examples/demo-script.md). Every visual is
-program-generated (palette-driven gradient compositions, PIL typography,
-film grain, Ken Burns motion) -- no stock footage, no downloaded media.
+The GIF above is a 7-second excerpt (640 px, 10 fps) of
+[docs/demo.mp4](docs/demo.mp4), an 83-second explainer rendered by this
+pipeline from [examples/demo-script.md](examples/demo-script.md). Every
+visual is generated in code (palette gradients, PIL typography, film grain,
+Ken Burns motion). There is no stock footage or downloaded media.
 
 ```console
 $ pip install git+https://github.com/ssh071102-code/script2video
@@ -37,10 +37,9 @@ total    83.28s
 output : docs/demo.mp4 (3.02 MiB, 83.28s, h264 1280x720 + aac 48000 Hz)
 ```
 
-This is the assembly and timing layer of a video production system. Feed it
-a script; it owns everything between "text on disk" and "valid mp4":
-narration, word-accurate captions, generated backdrops, transitions, and a
-fully deterministic encode.
+This is the assembly and timing layer of a video production system. It
+takes a script and handles the steps from text on disk to a valid mp4:
+narration, captions, backdrops, transitions and the encode.
 
 ## Pipeline
 
@@ -61,16 +60,19 @@ flowchart LR
   The service streams `WordBoundary` events alongside the audio; both are
   persisted per scene (`.mp3` + `.json`) and cached by a hash of
   `voice | rate | text`, so unchanged scenes are never re-synthesized.
-- **Captions**: built directly from those word boundaries -- grouped into
+- **Captions**: built directly from those word boundaries, grouped into
   readable cues by character budget, speech pauses, sentence ends, and a
   max cue duration, then balanced onto two lines. Punctuation is restored
-  from the script text (boundary events carry bare words).
+  from the script text (boundary events carry bare words). When the voice
+  reads a token differently, for example "2026" as "twenty twenty six",
+  the restore step keeps the spoken words and re-aligns on the next
+  matching words.
 - **Visuals**: each scene gets a generated 2x-supersampled card; ffmpeg's
   `zoompan` adds slow zoom/pan (four presets, cycled per scene), `xfade`
   crossfades scenes, and the `subtitles` filter burns the SRT.
 - **Assembly**: ffmpeg ships inside the
-  [imageio-ffmpeg](https://github.com/imageio/imageio-ffmpeg) wheel -- no
-  system install. The full argv is constructed by a pure module.
+  [imageio-ffmpeg](https://github.com/imageio/imageio-ffmpeg) wheel, so
+  no system install is needed. The full argv is constructed by a pure module.
 
 ## Commands
 
@@ -127,46 +129,47 @@ half right.
 ## How timing works
 
 Scenes crossfade, so the global timeline is shorter than the sum of scene
-durations -- and captions, audio delays, xfade offsets, and the final
-`-t` must all agree on the same arithmetic. `timeline.py` computes it once:
+durations. Captions, audio delays, xfade offsets and the final `-t` all
+have to agree on the same arithmetic. `timeline.py` computes it once:
 
 ```
-visual[i]          = pad_head + narration[i] + pad_tail   (quantized to whole frames)
+visual[i]          = pad_head + ceil_frame(narration[i]) + pad_tail   (all in whole frames)
 video_start[i]     = sum(visual[j] for j < i) - i * fade
 narration_start[i] = video_start[i] + pad_head
 total              = sum(visual) - (n - 1) * fade
 ```
 
-Two invariants are enforced rather than hoped for: everything is quantized
-to whole frames first (an xfade offset that misses a frame boundary makes a
-visible seam), and both pads must be >= the fade so a voice never speaks
-through a crossfade. Word timings are shifted by `narration_start[i]` onto
-the global clock before cue grouping -- which is also why a caption never
-spans two scenes.
+`build_timeline` checks two invariants and raises if either fails.
+Everything is quantized to whole frames first, because an xfade offset
+that misses a frame boundary makes a visible seam. Both pads, after
+rounding to frames, must be >= the rounded fade, and narration length is
+rounded up to the next frame, so the silence after each voice is never
+shorter than the fade. Word timings are shifted by `narration_start[i]`
+onto the global clock before cue grouping, so a caption never spans two
+scenes.
 
 ## Design notes
 
 **Why word boundaries instead of STT alignment?** The usual way to caption
 synthetic narration is to render audio, then run speech-to-text or forced
 alignment over it. That adds a model dependency, drifts on numbers and
-names, and can mishear the very text you already have. The TTS engine
-*knows* when it speaks each word; capturing `WordBoundary` events gives
-millisecond-accurate cues for free, offline, with zero chance of
-transcription error. The trade-off: caption timing quality is bound to the
-TTS metadata, which is exactly the right coupling for synthetic narration.
+names, and can mishear text you already have. The TTS engine reports
+when it speaks each word; recording the `WordBoundary` events gives
+millisecond cues without a second model or a transcription step. The
+trade-off is that caption timing is only as good as the TTS metadata,
+which is acceptable when the narration is synthetic anyway.
 
 **Why a pure filtergraph builder?** `filtergraph.py` maps
 `(timeline, filenames, settings) -> argv` with no I/O, no randomness, no
 clocks. The test suite asserts the *entire* ffmpeg command for known
 inputs, so a regression in assembly logic fails a string comparison
-instead of shipping a subtly broken video. ffmpeg also runs with `cwd` set
-to the working directory and only ever sees bare relative filenames --
-which sidesteps Windows path-quoting inside filter strings and keeps the
-argv byte-identical across machines.
+before it reaches a rendered video. ffmpeg also runs with `cwd` set to the
+working directory and only sees bare relative filenames. That avoids
+Windows path quoting inside filter strings and keeps the argv
+byte-identical across machines.
 
-**Why generated backdrops?** Shipping zero third-party media keeps the
-repository clean of licensing questions and keeps the focus on the layer
-this tool owns. Cards are rendered at 2x output resolution so `zoompan`
+**Why generated backdrops?** With no third-party media in the repository
+there are no licensing questions, and the code stays focused on assembly. Cards are rendered at 2x output resolution so `zoompan`
 only ever scales down. Titles use a system font chain (Segoe UI / Arial /
 DejaVu / Liberation, then Pillow's built-in fallback); no font files are
 bundled, and caption burn-in falls back through fontconfig the same way.
@@ -190,7 +193,7 @@ bundled, and caption burn-in falls back through fontconfig the same way.
 ```console
 $ pip install -e ".[dev]"
 $ pytest -q
-78 passed
+100 passed
 ```
 
 The suite is fully offline, including an end-to-end test that assembles a
@@ -198,21 +201,30 @@ real mp4 from committed fixtures and probes it (stream layout, duration
 against the computed timeline, full decode with zero errors). The fixtures
 under `tests/fixtures/narration/` are genuine edge-tts output (~47 KB);
 regenerate them with `python scripts/refresh_fixtures.py` when the fixture
-script changes. Everything else -- parser, timeline math, cue grouping,
-SRT formatting, argv construction -- is pure and tested with known-answer
-cases.
+script changes. The parser, timeline math, cue grouping, SRT formatting
+and argv construction are pure functions tested with known-answer cases.
 
 ## Limitations
 
 - **TTS needs the network.** edge-tts calls Microsoft's endpoint; there is
   no offline voice. Narration is cached aggressively, and everything
   downstream of the cache runs offline.
-- **Synthetic voices sound synthetic.** Good for explainers and drafts;
-  not a voice actor.
+- **Synthetic voices sound synthetic.** Fine for explainers and drafts.
+- **`--dry-run` estimates run short.** Uncached scenes are estimated at
+  2.9 words per second. For the demo script that gives 64.8s of narration
+  against 76.8s in the synthesized audio, about 16% short.
 - **This is the assembly layer.** Creative direction, model-generated
-  footage, music, and mixing sit above it. What this layer guarantees is
-  the part that should never be hand-tuned: timing, captions, and a
-  reproducible encode.
+  footage, music and mixing are out of scope. This layer covers timing,
+  captions and a reproducible encode.
+
+## Related
+
+[continuity-showrunner](https://github.com/ssh071102-code/continuity-showrunner)
+produces generative shots; script2video does the deterministic narration,
+caption and assembly step.
+
+## AI assistance
+This project was built with AI assistance (Claude Code). Commits it co-authored carry a `Co-Authored-By` trailer.
 
 ## License
 
