@@ -100,3 +100,30 @@ class TestRestorePunctuation:
         words = [Word("a", 0.0, 0.1), Word("b", 0.2, 0.3)]
         restored = restore_punctuation("a", words)
         assert [w.text for w in restored] == ["a", "b"]
+
+    def test_number_read_as_several_words_does_not_derail_the_rest(self) -> None:
+        # edge-tts speaks "2026" as three boundary events; the tokens after
+        # it must still line up with their own events.
+        text = "It shipped in 2026. Then, the team grew fast."
+        spoken = ["It", "shipped", "in", "twenty", "twenty", "six",
+                  "Then", "the", "team", "grew", "fast"]
+        words = [Word(w, i * 0.5, i * 0.5 + 0.4) for i, w in enumerate(spoken)]
+        restored = restore_punctuation(text, words)
+        assert [w.text for w in restored] == [
+            "It", "shipped", "in", "twenty", "twenty", "six.",
+            "Then,", "the", "team", "grew", "fast.",
+        ]
+        assert [w.start for w in restored] == [w.start for w in words]
+
+    def test_number_keeps_sentence_break_in_cues(self) -> None:
+        from script2video.captions import group_words
+
+        text = "It shipped in 2026. Then, the team grew fast."
+        spoken = ["It", "shipped", "in", "twenty", "twenty", "six",
+                  "Then", "the", "team", "grew", "fast"]
+        words = [Word(w, i * 0.3, i * 0.3 + 0.25) for i, w in enumerate(spoken)]
+        cues = group_words(restore_punctuation(text, words))
+        assert [" ".join(c.text.split()) for c in cues] == [
+            "It shipped in twenty twenty six.",
+            "Then, the team grew fast.",
+        ]

@@ -19,6 +19,7 @@ import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from .captions import Word
 from .errors import NarrationError
@@ -70,10 +71,71 @@ def restore_punctuation(text: str, words: list[Word]) -> list[Word]:
             t += 1
             i = j
             continue
-        out.append(word)  # give up on this event, keep clocks moving
-        t += 1
-        i += 1
+        # No match: the service spoke this token differently (a number like
+        # "2026" arrives as "twenty twenty six"). Find the nearest point
+        # where events and tokens line up again and keep the unmatched
+        # events' own text, so one surprise does not shift every later word.
+        resync = _find_resync(words, tokens, i, t, norm)
+        if resync is None:
+            out.append(word)  # nothing lines up again; keep clocks moving
+            t += 1
+            i += 1
+            continue
+        skip_events, skip_tokens = resync
+        spoken = words[i : i + skip_events]
+        # Carry the skipped tokens' trailing punctuation onto the last spoken
+        # event so sentence ends still break captions.
+        trail = _trailing_punct(tokens[t + skip_tokens - 1]) if skip_tokens else ""
+        for k, ev in enumerate(spoken):
+            suffix = trail if k == len(spoken) - 1 else ""
+            out.append(Word(ev.text + suffix, ev.start, ev.end))
+        i += skip_events
+        t += skip_tokens
     return out
+
+
+_RESYNC_WINDOW = 8
+
+
+def _find_resync(
+    words: list[Word],
+    tokens: list[str],
+    i: int,
+    t: int,
+    norm: Callable[[str], str],
+) -> tuple[int, int] | None:
+    """Smallest (events, tokens) skip after which both streams match again.
+
+    A match needs two consecutive agreeing pairs (or one at the very end of
+    both streams) so a common word like "the" cannot anchor a false resync.
+    """
+
+    def agrees(a: int, b: int) -> bool:
+        return norm(words[a].text) == norm(tokens[b])
+
+    for total in range(1, 2 * _RESYNC_WINDOW + 1):
+        for de in range(max(1, total - _RESYNC_WINDOW), min(total, _RESYNC_WINDOW) + 1):
+            dt = total - de
+            a, b = i + de, t + dt
+            if a > len(words) or b > len(tokens):
+                continue
+            if a == len(words) and b == len(tokens):
+                return de, dt
+            if a >= len(words) or b >= len(tokens) or not agrees(a, b):
+                continue
+            last_pair = a + 1 == len(words) and b + 1 == len(tokens)
+            if last_pair or (
+                a + 1 < len(words) and b + 1 < len(tokens) and agrees(a + 1, b + 1)
+            ):
+                return de, dt
+    return None
+
+
+def _trailing_punct(token: str) -> str:
+    end = len(token)
+    while end > 0 and not token[end - 1].isalnum():
+        end -= 1
+    return token[end:]
 
 
 @dataclass(frozen=True)
