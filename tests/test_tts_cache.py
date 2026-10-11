@@ -127,3 +127,23 @@ class TestRestorePunctuation:
             "It shipped in twenty twenty six.",
             "Then, the team grew fast.",
         ]
+
+    def test_resync_lands_on_hyphen_merged_token(self) -> None:
+        # The token right after the resync point ("Re-read") arrives as two
+        # events; the resync must still anchor there and keep both the
+        # sentence break and the hyphen.
+        from script2video.captions import group_words
+
+        text = "Use 2 well. Re-read this carefully."
+        spoken = ["Use", "two", "well", "Re", "read", "this", "carefully"]
+        words = [Word(w, i * 0.3, i * 0.3 + 0.25) for i, w in enumerate(spoken)]
+        restored = restore_punctuation(text, words)
+        assert [w.text for w in restored] == [
+            "Use", "two", "well.", "Re-read", "this", "carefully.",
+        ]
+        assert (restored[3].start, restored[3].end) == (words[3].start, words[4].end)
+        cues = group_words(restored)
+        assert [" ".join(c.text.split()) for c in cues] == [
+            "Use two well.",
+            "Re-read this carefully.",
+        ]

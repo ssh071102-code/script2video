@@ -193,7 +193,7 @@ bundled, and caption burn-in falls back through fontconfig the same way.
 ```console
 $ pip install -e ".[dev]"
 $ pytest -q
-100 passed
+101 passed
 ```
 
 The suite is fully offline, including an end-to-end test that assembles a

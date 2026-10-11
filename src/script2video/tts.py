@@ -53,23 +53,13 @@ def restore_punctuation(text: str, words: list[Word]) -> list[Word]:
             out.append(word)
             i += 1
             continue
-        token_norm = norm(tokens[t])
-        if norm(word.text) == token_norm:
-            out.append(Word(tokens[t], word.start, word.end))
-            t += 1
-            i += 1
-            continue
         # The service may split one script token (e.g. "Retrieval-augmented")
-        # into several boundary events; merge while they prefix-match.
-        merged = norm(word.text)
-        j = i + 1
-        while j < len(words) and token_norm.startswith(merged) and merged != token_norm:
-            merged += norm(words[j].text)
-            j += 1
-        if merged == token_norm:
-            out.append(Word(tokens[t], word.start, words[j - 1].end))
+        # into several boundary events; _match_len merges them.
+        n = _match_len(words, i, tokens[t], norm)
+        if n:
+            out.append(Word(tokens[t], word.start, words[i + n - 1].end))
             t += 1
-            i = j
+            i += n
             continue
         # No match: the service spoke this token differently (a number like
         # "2026" arrives as "twenty twenty six"). Find the nearest point
@@ -110,9 +100,6 @@ def _find_resync(
     both streams) so a common word like "the" cannot anchor a false resync.
     """
 
-    def agrees(a: int, b: int) -> bool:
-        return norm(words[a].text) == norm(tokens[b])
-
     for total in range(1, 2 * _RESYNC_WINDOW + 1):
         for de in range(max(1, total - _RESYNC_WINDOW), min(total, _RESYNC_WINDOW) + 1):
             dt = total - de
@@ -121,14 +108,33 @@ def _find_resync(
                 continue
             if a == len(words) and b == len(tokens):
                 return de, dt
-            if a >= len(words) or b >= len(tokens) or not agrees(a, b):
+            if a >= len(words) or b >= len(tokens):
                 continue
-            last_pair = a + 1 == len(words) and b + 1 == len(tokens)
+            n = _match_len(words, a, tokens[b], norm)
+            if not n:
+                continue
+            last_pair = a + n == len(words) and b + 1 == len(tokens)
             if last_pair or (
-                a + 1 < len(words) and b + 1 < len(tokens) and agrees(a + 1, b + 1)
+                a + n < len(words)
+                and b + 1 < len(tokens)
+                and _match_len(words, a + n, tokens[b + 1], norm)
             ):
                 return de, dt
     return None
+
+
+def _match_len(
+    words: list[Word], a: int, token: str, norm: Callable[[str], str]
+) -> int:
+    """Events starting at *a* that spell *token* (several for a split
+    hyphenated token), or 0 when they do not match it."""
+    token_norm = norm(token)
+    merged = norm(words[a].text)
+    j = a + 1
+    while j < len(words) and token_norm.startswith(merged) and merged != token_norm:
+        merged += norm(words[j].text)
+        j += 1
+    return j - a if merged == token_norm else 0
 
 
 def _trailing_punct(token: str) -> str:
