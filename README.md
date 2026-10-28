@@ -223,9 +223,6 @@ and argv construction are pure functions tested with known-answer cases.
 produces generative shots; script2video does the deterministic narration,
 caption and assembly step.
 
-## AI assistance
-This project was built with AI assistance (Claude Code). Commits it co-authored carry a `Co-Authored-By` trailer.
-
 ## License
 
 MIT. Copyright (c) 2026 Laurin Lin.
